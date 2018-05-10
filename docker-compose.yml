@@ -1,0 +1,32 @@
+version: '3'
+
+services:
+    keny64:
+     build: ./web 
+     ports:
+      - "8080:80"
+     networks:
+     - backend
+     - bridge
+     volumes:
+     - ./share:/share
+
+    mysql:
+     image: mysql
+     environment: 
+        MYSQL_ROOT_PASSWORD: password
+        MYSQL_DATABASE: phpadmin
+        MYSQL_USER: phpadmin
+        MYSQL_PASSWORD: password 
+     networks:
+     - backend
+#     volumes:
+#     - "./mysql:/var/lib/mysql"
+
+volumes:
+  phpBB-database:
+
+networks:
+ backend:
+ bridge:
+

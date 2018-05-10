@@ -1,0 +1,243 @@
+include "types.cf"
+include "/etc/VRTSvcs/conf/config/NetBackupTypes.cf"
+include "PBX.cf"
+
+cluster netbackup_sbpnd01sp144 (
+	UserNames = { admin = CLKiLKkRLqJTkUIfIG,
+		 fcalde = eIEpIDiIIcIOhRIpFCeJ,
+		 rsandh = GPNkPYpMPqMPlKMoMP,
+		 dsaid = aHHdHJgCHoHIgGHnHG,
+		 tfeluc = enmKnwNkoJniMlnLnuMioIkjJhkHkm,
+		 jghuma = JihDidHqiLilIgfCfeEf,
+		 tjacob = HJKgJNiEJfJSiFJpJSiR,
+		 sumkum = ennJnpMinUnoMmnTnm,
+		 japoon = ajjFjlIejQjkIijPji,
+		 ghadda = gmnHnlLumTmpLumM,
+		 hhasso = bopJpnNwoVorNwoO,
+		 mdanis = bIJdJHhQIpILhQIi,
+		 swang = CjjFjlIejQjkIijPji,
+		 ashrha = bomQouLjpNovOmlJmq,
+		 lokode = aiiEikHdiPijHhiOih,
+		 srizvi = BppLprOkpWpqOopVpo }
+	Administrators = { admin, fcalde, rsandh, dsaid, tfeluc, jghuma, tjacob,
+		 sumkum,
+		 japoon,
+		 ghadda,
+		 hhasso,
+		 mdanis,
+		 swang,
+		 ashrha,
+		 lokode,
+		 srizvi }
+	HostMonLogLvl = DisableHMAgent
+	ClusterAddress = "172.20.120.157"
+	)
+
+remotecluster netbackup_sbpnd01wm144 (
+	ClusterAddress = "172.22.12.201"
+	)
+
+remotecluster netbackup_sbpnd01ba144 (
+	ClusterAddress = "172.26.100.68"
+	)
+
+heartbeat Icmp (
+        ClusterList = { netbackup_sbpnd01wm144 }
+        Arguments @netbackup_sbpnd01wm144 = { "172.22.12.201" }
+        Arguments @netbackup_sbpnd01ba144 = { "172.26.100.68" }
+        )
+
+
+system sbpnd01sp144 (
+	)
+
+group ClusterService (
+	SystemList = { sbpnd01sp144 = 0 }
+	AutoStartList = { sbpnd01sp144 }
+	TriggersEnabled @sbpnd01sp144 = { POSTONLINE, POSTOFFLINE }
+	OnlineRetryLimit = 3
+	OnlineRetryInterval = 120
+	)
+
+	
+        Application wac (
+                StartProgram = "/opt/VRTSvcs/bin/wacstart"
+                MonitorProcesses = { "/opt/VRTSvcs/bin/wac" }
+                StopProgram = "/opt/VRTSvcs/bin/wacstop"
+                RestartLimit = 3
+                )
+
+        IPMultiNICB gcoip (                                   
+                BaseResName = nbu_MNICB
+                Address @sbpnd01sp144 = "172.20.120.157"
+                NetMask @sbpnd01sp144 = "255.255.254.0"
+                )
+
+	NotifierMngr ntfr (
+		SmtpFromPath = "unix.admin@scotiabank.com"
+		SmtpServer = "appmailrelay.gss.scotia-capital.com"
+		SmtpRecipients = { "unix.admin@scotiabank.com" = Warning }
+		)
+
+	Proxy nbu_multinic_PROXY (
+		TargetResName = nbu_MNICB
+		)
+
+	ntfr requires nbu_multinic_PROXY
+        gcoip requires nbu_multinic_PROXY
+        wac requires gcoip
+
+
+
+	// resource dependency tree
+	//
+	//	group ClusterService
+	//	{
+	//	NotifierMngr ntfr
+	//	    {
+	//	    Proxy nbu_multinic_PROXY
+	//	    }
+	//	}
+
+
+group catalogBU_SG (
+	SystemList = { sbpnd01sp144 = 0 }
+        ClusterList = { netbackup_sbpnd01wm144 = 0,
+                        netbackup_sbpnd01sp144 = 1 }
+	AutoStart = 0
+	AutoFailOver = 0
+	AutoStartList = { sbpnd01sp144 }
+	TriggersEnabled @sbpnd01sp144 = { POSTONLINE, POSTOFFLINE }
+	)
+
+	DiskGroup catrepdg_DG (
+		DiskGroup = catrepdg
+		)
+
+	Mount catrep_MNT (
+		FsckOpt = "-y"
+		BlockDevice = "/dev/vx/dsk/catrepdg/catrepnvol"
+		MountPoint = "/repository"
+		FSType = vxfs
+		)
+
+	Volume catrepvol_VOL (
+		Volume = catrepnvol
+		DiskGroup = catrepdg
+		)
+
+	catrep_MNT requires catrepvol_VOL
+	catrepvol_VOL requires catrepdg_DG
+
+
+	// resource dependency tree
+	//
+	//	group catalogBU_SG
+	//	{
+	//	Mount catrep_MNT
+	//	    {
+	//	    Volume catrepvol_VOL
+	//	        {
+	//	        DiskGroup catrepdg_DG
+	//	        }
+	//	    }
+	//	}
+
+
+group nbu_SG (
+	SystemList = { sbpnd01sp144 = 0 }
+        ClusterList = { netbackup_sbpnd01wm144 = 0,
+                 	netbackup_sbpnd01sp144 = 1 }
+	AutoStart = 0
+	Frozen = 1
+	AutoFailOver = 0
+	AutoStartList = { sbpnd01sp144 }
+	TriggersEnabled @sbpnd01sp144 = { POSTONLINE, POSTOFFLINE }
+	)
+
+	DiskGroup nbudg_DG (
+		DiskGroup = nbudg
+		)
+
+	IPMultiNICB nbu_IPMNICB (
+		BaseResName = nbu_MNICB
+		Address @sbpnd01sp144 = "172.20.120.125"
+		NetMask @sbpnd01sp144 = "255.255.254.0"
+		)
+
+	Mount netbackup_MNT (
+		FsckOpt = "-y"
+		BlockDevice = "/dev/vx/dsk/nbudg/nbuvol"
+		MountPoint = "/netbackup"
+		FSType = vxfs
+		)
+
+	MultiNICB nbu_MNICB (
+		Device = { igb0 = 0, igb4 = 1 }
+		UseMpathd = 1
+		)
+
+	NFS NFS_server (
+		Critical = 0
+		)
+
+	NetBackup server_NBU (
+		AutoStart = 0
+		Critical = 0
+		ServerName = NBU_Server
+		ServerType = NBUMaster
+		RSPFile = "/usr/openv/netbackup/bin/cluster/NBU_RSP"
+		GroupName = nbu_SG
+		MonScript = NONE
+		)
+
+	Share catalogBU_share (
+		Critical = 0
+		Options = "ro,anon=0"
+		PathName = "/netbackup/catalogBU/share"
+		)
+
+	Volume nbuvol_VOL (
+		Volume = nbuvol
+		DiskGroup = nbudg
+		)
+
+	catalogBU_share requires NFS_server
+	catalogBU_share requires netbackup_MNT
+	nbu_IPMNICB requires nbu_MNICB
+	nbuvol_VOL requires nbudg_DG
+	netbackup_MNT requires nbuvol_VOL
+	server_NBU requires nbu_IPMNICB
+	server_NBU requires netbackup_MNT
+
+
+	// resource dependency tree
+	//
+	//	group nbu_SG
+	//	{
+	//	Share catalogBU_share
+	//	    {
+	//	    NFS NFS_server
+	//	    Mount netbackup_MNT
+	//	        {
+	//	        Volume nbuvol_VOL
+	//	            {
+	//	            DiskGroup nbudg_DG
+	//	            }
+	//	        }
+	//	    }
+	//	NetBackup server_NBU
+	//	    {
+	//	    IPMultiNICB nbu_IPMNICB
+	//	        {
+	//	        MultiNICB nbu_MNICB
+	//	        }
+	//	    Mount netbackup_MNT
+	//	        {
+	//	        Volume nbuvol_VOL
+	//	            {
+	//	            DiskGroup nbudg_DG
+	//	            }
+	//	        }
+	//	    }
+	//	}
